@@ -184,6 +184,19 @@ RSpec.describe Project do
     expect(project.feature_flags).not_to have_key("not_exists_flag")
   end
 
+  it "does not count vms in locations with only hosts dedicated to the project against the vcpu quota" do
+    dedicated_location_id = Location[name: "us-west-u1-dedicated"].id
+    create_vm_host(location_id: dedicated_location_id, project_id: project.id)
+    Prog::Vm::Nexus.assemble("a a", project.id, location_id: dedicated_location_id, size: "standard-4")
+    expect(project.dedicated_location_ids_dataset.select_map(:location_id)).to eq [dedicated_location_id]
+    expect(project.current_resource_usage("VmVCpu")).to eq 0
+
+    # Once the location has another host, the project's VMs could run elsewhere
+    create_vm_host(location_id: dedicated_location_id)
+    expect(project.dedicated_location_ids_dataset.select_map(:location_id)).to eq []
+    expect(project.current_resource_usage("VmVCpu")).to eq 4
+  end
+
   it "calculates current resource usage" do
     expect(project.current_resource_usage("VmVCpu")).to eq 0
     vm1 = nil

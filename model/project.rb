@@ -220,7 +220,7 @@ class Project < Sequel::Model
 
   def current_resource_usage(resource_type)
     case resource_type
-    when "VmVCpu" then vms_dataset.sum(:vcpus) || 0
+    when "VmVCpu" then vms_dataset.exclude(location_id: dedicated_location_ids_dataset).sum(:vcpus) || 0
     when "GithubRunnerVCpu" then GithubRunner.where(installation_id: github_installations_dataset.select(:id)).exclude(Sequel.like(Sequel[:github_runner][:label], "%-arm%")).metal_active_runner_vcpus
     when "GithubRunnerVCpuArm" then GithubRunner.where(installation_id: github_installations_dataset.select(:id)).where(Sequel.like(Sequel[:github_runner][:label], "%-arm%")).metal_active_runner_vcpus
     when "GithubRunnerVCpuAws" then GithubRunner.where(installation_id: github_installations_dataset.select(:id)).exclude(Sequel.like(Sequel[:github_runner][:label], "%-arm%")).aws_active_runner_vcpus
@@ -265,6 +265,16 @@ class Project < Sequel::Model
   # enabled by feature flag, and those containing a host dedicated to it.
   def visible_location_names
     (get_ff_visible_locations || []) | Location.where(id: DB[:vm_host].where(project_id: id).select(:location_id)).select_map(:name)
+  end
+
+  # Locations whose hosts are all dedicated to the project. The project's VMs
+  # there can only run on its own hosts, which are billed at a flat fee, so
+  # they are exempt from the vCPU quota.
+  def dedicated_location_ids_dataset
+    DB[:vm_host]
+      .group(:location_id)
+      .having(Sequel.function(:bool_and, Sequel.function(:coalesce, Sequel.expr(project_id: id), false)))
+      .select(:location_id)
   end
 
   def total_github_amount(begin_time, end_time)
