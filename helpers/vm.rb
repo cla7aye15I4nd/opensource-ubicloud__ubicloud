@@ -104,10 +104,22 @@ class Clover
     # Same as above, moved the size validation here to not allow users to
     # pass gpu instance while creating a VM.
     if assemble_params[:size]
-      parsed_size = Validation.validate_vm_size(assemble_params[:size], "x64", only_visible: true)
+      parsed_size = Option::VmSizes.find { it.gpu_count && it.name == assemble_params[:size] } ||
+        Validation.validate_vm_size(assemble_params[:size], "x64", only_visible: true)
     end
 
-    if assemble_params[:storage_size]
+    if parsed_size&.gpu_count
+      # Sizes with GPUs determine the GPUs and the storage: one volume per GPU,
+      # each on its own drive, the first one being the boot volume.
+      gpu = "#{parsed_size.gpu_count}:#{parsed_size.gpu_device}"
+      unless assemble_params.fetch(:gpu, gpu) == gpu
+        fail Validation::ValidationFailed.new({gpu: "#{parsed_size.name} virtual machines have the GPUs #{gpu}"})
+      end
+      assemble_params[:gpu] = gpu
+      storage_size = Validation.validate_vm_storage_size(parsed_size.name, "x64", assemble_params.delete(:storage_size) || parsed_size.storage_size_options.first)
+      assemble_params[:storage_volumes] = Array.new(parsed_size.gpu_count) { {size_gib: storage_size, encrypted: true} }
+      assemble_params[:distinct_storage_devices] = true
+    elsif assemble_params[:storage_size]
       storage_size = Validation.validate_vm_storage_size(assemble_params[:size] || Prog::Vm::Nexus::DEFAULT_SIZE, "x64", assemble_params[:storage_size])
       assemble_params[:storage_volumes] = [{size_gib: storage_size, encrypted: true}]
       assemble_params.delete(:storage_size)
@@ -236,12 +248,14 @@ class Clover
       !!BillingRate.from_resource_properties("VmVCpu", family, location.name)
     end
 
-    options.add_option(name: "size", values: Option::VmSizes.select(&:visible).map(&:display_name), parent: "family") do |location, family, size|
+    # When GPUs are offered, the size depends on them, as sizes with GPUs
+    # (b300-*) are only offered with their GPUs.
+    options.add_option(name: "size", values: Option::VmSizes.select { it.visible || it.gpu_count }.map(&:display_name), parent: (@show_gpu == false) ? "family" : "gpu") do |location, family, *gpu, size|
       vm_size = Option::VmSizes.find { it.display_name == size && it.arch == "x64" }
-      vm_size.family == family
+      vm_size.family == family && (vm_size.gpu_count.nil? || gpu == ["#{vm_size.gpu_count}:#{vm_size.gpu_device}"])
     end
 
-    options.add_option(name: "storage_size", values: ["10", "20", "40", "80", "160", "320", "600", "640", "1200", "2400"], parent: "size") do |location, family, size, storage_size|
+    options.add_option(name: "storage_size", values: ["10", "20", "40", "80", "160", "320", "600", "640", "1200", "1600", "2400", "3200"], parent: "size") do |location, family, *, size, storage_size|
       vm_size = Option::VmSizes.find { it.display_name == size && it.arch == "x64" }
       vm_size.storage_size_options.include?(storage_size.to_i)
     end

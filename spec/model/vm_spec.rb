@@ -109,6 +109,21 @@ RSpec.describe Vm do
       expect(vm.cloud_hypervisor_cpu_topology.to_s).to eq("2:2:1:1")
     end
 
+    it "scales the b300 sizes on B300 hosts with a die per package or per CCD" do
+      # 2x 48 cores with a die per package, and 2x 64 cores with a die per CCD
+      {
+        [192, 96, 2] => {"b300-1" => "2:8:1:1", "b300-2" => "2:16:1:1", "b300-4" => "2:32:1:1", "b300-8" => "2:32:1:2"},
+        [256, 128, 16] => {"b300-1" => "2:8:1:1", "b300-2" => "2:16:1:1", "b300-4" => "2:16:2:1", "b300-8" => "2:16:4:1"},
+      }.each do |(total_cpus, total_cores, total_dies), topologies|
+        vmh = create_vm_host(total_cpus:, total_cores:, total_dies:, total_sockets: 2)
+        topologies.each do |size, topology|
+          vm_size = Option::VmSizes.find { it.name == size }
+          vm = create_vm(vm_host_id: vmh.id, family: "standard", vcpus: vm_size.vcpus, memory_gib: vm_size.memory_gib)
+          expect(vm.cloud_hypervisor_cpu_topology.to_s).to eq(topology)
+        end
+      end
+    end
+
     it "crashes if total_cpus is not multiply of total_cores" do
       vmh = create_vm_host(total_cpus: 3, total_cores: 2, total_dies: 1, total_sockets: 1)
       vm = create_vm(vm_host_id: vmh.id, family: "standard", vcpus: 2)

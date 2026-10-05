@@ -226,7 +226,7 @@ module Option
   IoLimits = Data.define(:max_read_mbytes_per_sec, :max_write_mbytes_per_sec)
   NO_IO_LIMITS = IoLimits.new(nil, nil)
 
-  VmSize = Struct.new(:name, :family, :vcpus, :cpu_percent_limit, :cpu_burst_percent_limit, :memory_gib, :storage_size_options, :io_limits, :vring_workers, :visible, :arch) do
+  VmSize = Struct.new(:name, :family, :vcpus, :cpu_percent_limit, :cpu_burst_percent_limit, :memory_gib, :storage_size_options, :io_limits, :vring_workers, :visible, :arch, :gpu_count, :gpu_device) do
     alias_method :display_name, :name
   end
   VmSizes = [2, 4, 8, 16, 30, 60].map {
@@ -238,6 +238,16 @@ module Option
   }).concat([2, 4, 8, 16, 30].map {
     storage_size_options = [it * 20, it * 40]
     VmSize.new("premium-#{it}", "premium", it, it * 100, 0, it * 4, storage_size_options, NO_IO_LIMITS, vring_workers(it), false, "x64")
+  }).concat([1, 2, 4, 8].map { |gpu_count|
+    # Each size gets 16 vCPUs and 216 GiB of memory per GPU of a B300 host.
+    # On the B300 hosts with the fewest CPUs, with 2x 48 cores, b300-8 leaves
+    # room for standard VMs up to standard-60 next to it. Every GPU comes with
+    # one data drive, with storage_size_options giving the size of a volume
+    # per drive: the smaller one leaves room for the disks of standard VMs on
+    # the drives. They are not visible, so they are not listed among the
+    # generally available sizes, as only locations with B300 hosts offer them.
+    vcpus = gpu_count * 16
+    VmSize.new("b300-#{gpu_count}", "standard", vcpus, vcpus * 100, 0, gpu_count * 216, [1600, 3200], NO_IO_LIMITS, vring_workers(16), false, "x64", gpu_count, "3182")
   }).concat([1, 2].map {
     storage_size_options = [it * 10, it * 20]
     io_limits = IoLimits.new(it * 50, it * 50)
