@@ -19,6 +19,8 @@ class VmHost < Sequel::Model
   one_to_many :slices, class: :VmHostSlice, read_only: true
   one_to_many :cpus, class: :VmHostCpu, read_only: true
   many_to_one :location, read_only: true
+  # Set for hosts dedicated to a single customer, see Scheduling::Allocator.
+  many_to_one :project, read_only: true
   one_to_many :gpu_partitions, read_only: true
 
   many_to_many :assigned_vm_addresses, join_table: :address, left_key: :routed_to_host_id, right_key: :id, right_primary_key: :address_id, read_only: true
@@ -544,6 +546,7 @@ end
 #  location_id        | uuid                     | NOT NULL
 #  family             | text                     | NOT NULL
 #  score_offset       | double precision         | NOT NULL DEFAULT 0
+#  project_id         | uuid                     |
 # Indexes:
 #  vm_host_pkey     | PRIMARY KEY btree (id)
 #  vm_host_ip6_key  | UNIQUE btree (ip6)
@@ -556,6 +559,7 @@ end
 # Foreign key constraints:
 #  vm_host_id_fkey          | (id) REFERENCES sshable(id)
 #  vm_host_location_id_fkey | (location_id) REFERENCES location(id)
+#  vm_host_project_id_fkey  | (project_id) REFERENCES project(id)
 # Referenced By:
 #  address               | address_routed_to_host_id_fkey        | (routed_to_host_id) REFERENCES vm_host(id)
 #  assigned_host_address | assigned_host_address_host_id_fkey    | (host_id) REFERENCES vm_host(id)
