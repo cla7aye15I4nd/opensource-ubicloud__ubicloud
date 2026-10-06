@@ -879,9 +879,13 @@ DNSMASQ_SERVICE
       "-machine accel=kvm,type=q35",
     ]
 
+    # Unlike cloud-hypervisor's num_queues, QEMU's queues is the number of
+    # queue pairs, each opening the tap device once. Use a pair per vCPU,
+    # within the kernel's limit of 256 queues per tap device.
+    net_queue_pairs = [max_vcpus, 256].min
     net_parts = nics.each_with_index.flat_map { |nic, i|
       [
-        "-netdev tap,id=net#{i},ifname=#{nic.tap},script=no,downscript=no,queues=#{max_vcpus * 2 + 1},vhost=on",
+        "-netdev tap,id=net#{i},ifname=#{nic.tap},script=no,downscript=no,queues=#{net_queue_pairs},vhost=on",
         "-device virtio-net-pci,mac=#{nic.mac},netdev=net#{i},mq=on,romfile=",
       ]
     }
