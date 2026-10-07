@@ -5,7 +5,7 @@ require_relative "../lib/system_parser"
 
 class VmHost < Sequel::Model
   one_to_one :strand, key: :id
-  one_to_one :sshable, key: :id, read_only: true
+  one_to_one :sshable, key: :id
   one_to_many :vms, read_only: true
   one_to_many :assigned_subnets, key: :routed_to_host_id, class: :Address, read_only: true
   one_to_one :provider, key: :id, class: :HostProvider, read_only: true
@@ -251,10 +251,6 @@ class VmHost < Sequel::Model
     fail ArgumentError, "No version provided" if version.nil?
 
     Strand.create(prog: "DownloadCloudHypervisor", label: "start", stack: [{subject_id: id, version:, sha256_ch_bin:, sha256_ch_remote:}])
-  end
-
-  def set_data_center
-    update(data_center: provider.api.pull_data_center)
   end
 
   def create_inventory(inventory: provider.api.pull_inventory)

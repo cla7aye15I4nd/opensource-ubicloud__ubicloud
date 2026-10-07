@@ -5,30 +5,41 @@ class Prog::Vm::HostNexus < Prog::Base
   frame_reader :vhost_block_backend_version, :default_boot_images, :install_os
   frame_accessor :accepting_before_patch
 
-  def self.assemble(sshable_hostname, location_id: Location::HETZNER_FSN1_ID, family: "standard", net6: nil, ndp_needed: false, provider_name: nil, server_identifier: nil, vhost_block_backend_version: Config.vhost_block_backend_version, default_boot_images: [], install_os: false)
-    DB.transaction do
-      unless Location[location_id]
-        raise "No existing Location"
-      end
+  def self.assemble(...)
+    DB.transaction(&assemble_block(...))
+  end
 
-      id = VmHost.generate_uuid
-      Sshable.create_with_id(id, host: sshable_hostname)
-      vmh = VmHost.create_with_id(id, location_id:, family:, net6:, ndp_needed:)
+  def self.assemble_block(sshable_hostname, location_id: Location::HETZNER_FSN1_ID, family: "standard", net6: nil, ndp_needed: false, provider_name: nil, server_identifier: nil, vhost_block_backend_version: Config.vhost_block_backend_version, default_boot_images: [], install_os: false)
+    unless Location[location_id]
+      raise "No existing Location"
+    end
 
-      if [HostProvider::HETZNER_PROVIDER_NAME, *HostProvider::LEASEWEB_PROVIDER_NAMES].include?(provider_name)
-        HostProvider.create do |hp|
-          hp.id = id
-          hp.provider_name = provider_name
-          hp.server_identifier = server_identifier
-        end
-      end
+    id = VmHost.generate_uuid
+    vmh = VmHost.new(location_id:, family:, net6:, ndp_needed:)
+    vmh.id = id
+    vmh.sshable = Sshable.new(host: sshable_hostname)
 
-      if [HostProvider::HETZNER_PROVIDER_NAME, *HostProvider::LEASEWEB_PROVIDER_NAMES].include?(provider_name)
-        vmh.create_addresses
-        vmh.set_data_center
-        vmh.create_inventory
-        # Avoid overriding custom server names for development hosts.
-        vmh.set_server_name unless Config.development?
+    if [HostProvider::HETZNER_PROVIDER_NAME, *HostProvider::LEASEWEB_PROVIDER_NAMES].include?(provider_name)
+      hp = HostProvider.new
+      hp.vm_host = vmh
+      hp.provider_name = provider_name
+      hp.server_identifier = server_identifier
+
+      ip_records = hp.api.pull_ips
+      vmh.data_center = hp.api.pull_data_center
+      inventory = hp.api.pull_inventory
+      # Avoid overriding custom server names for development hosts.
+      vmh.set_server_name unless Config.development?
+    end
+
+    proc do
+      vmh.sshable.save_changes
+      vmh.save_changes
+
+      if hp
+        hp.save_changes
+        vmh.create_addresses(ip_records:)
+        vmh.create_inventory(inventory:)
       else
         Address.create_with_id(id, cidr: sshable_hostname, routed_to_host_id: id)
         AssignedHostAddress.create(ip: sshable_hostname, address_id: id, host_id: id)
