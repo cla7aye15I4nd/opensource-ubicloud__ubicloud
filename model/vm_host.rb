@@ -257,8 +257,8 @@ class VmHost < Sequel::Model
     update(data_center: provider.api.pull_data_center)
   end
 
-  def create_inventory
-    VmHostInventory.create(provider.api.pull_inventory) { it.id = id }
+  def create_inventory(inventory: provider.api.pull_inventory)
+    VmHostInventory.create(inventory) { it.id = id }
   end
 
   def allow_slices
