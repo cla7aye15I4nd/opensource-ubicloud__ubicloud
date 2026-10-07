@@ -2004,15 +2004,22 @@ class CloverAdmin < Roda
         end
 
         started = DB.ignore_duplicate_queries do
+          assemble_info = hosts.map do |server_identifier, host|
+            [
+              server_identifier,
+              Prog::Vm::HostNexus.assemble_block(host, location_id:, family:, provider_name:,
+                server_identifier:, vhost_block_backend_version:, default_boot_images:, install_os:),
+            ]
+          end
+
           DB.transaction do
-            hosts.map do |server_identifier, host|
-              st = Prog::Vm::HostNexus.assemble(host, location_id:, family:, provider_name:,
-                server_identifier:, vhost_block_backend_version:, default_boot_images:, install_os:)
-              "#{st.ubid} (#{provider_name} #{server_identifier})"
+            assemble_info.map do |server_identifier, block|
+              st = block.call
+              "#{st.ubid} (#{server_identifier})"
             end
           end
         end
-        flash["notice"] = "VM host setup started: #{started.join(", ")}"
+        flash["notice"] = "#{provider_name.capitalize} VM host setup started: #{started.join(", ")}"
         r.redirect
       end
     end

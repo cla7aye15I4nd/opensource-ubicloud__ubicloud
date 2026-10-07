@@ -3170,7 +3170,7 @@ RSpec.describe CloverAdmin do
 
       st = Strand.first(prog: "Vm::HostNexus")
       vmh = VmHost[st.id]
-      expect(page).to have_flash_notice("VM host setup started: #{st.ubid} (hetzner 12345)")
+      expect(page).to have_flash_notice("Hetzner VM host setup started: #{st.ubid} (12345)")
       expect(vmh.sshable.host).to eq "1.2.3.4"
       expect(vmh.location_id).to eq Location::HETZNER_FSN1_ID
       expect(vmh.family).to eq "standard"
@@ -3200,7 +3200,7 @@ RSpec.describe CloverAdmin do
       click_button "Setup VM Hosts"
 
       st = Strand.first(prog: "Vm::HostNexus")
-      expect(page).to have_flash_notice("VM host setup started: #{st.ubid} (hetzner 54321)")
+      expect(page).to have_flash_notice("Hetzner VM host setup started: #{st.ubid} (54321)")
       expect(VmHost[st.id].family).to eq "premium"
 
       frame = st.stack.first
@@ -3219,7 +3219,7 @@ RSpec.describe CloverAdmin do
 
       vmh1 = VmHost.first(sshable: Sshable.where(host: "1.2.3.4"))
       vmh2 = VmHost.first(sshable: Sshable.where(host: "1.2.3.5"))
-      expect(page).to have_flash_notice("VM host setup started: #{vmh1.ubid} (hetzner 12345), #{vmh2.ubid} (hetzner 54321)")
+      expect(page).to have_flash_notice("Hetzner VM host setup started: #{vmh1.ubid} (12345), #{vmh2.ubid} (54321)")
       expect(vmh1.provider.server_identifier).to eq "12345"
       expect(vmh2.provider.server_identifier).to eq "54321"
     end
