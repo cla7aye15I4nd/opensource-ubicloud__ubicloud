@@ -59,11 +59,19 @@ RSpec.describe Clover, "postgres" do
     end
 
     describe "list" do
-      it "can list flavors when there is no pg databases" do
+      it "offers to create a database when there are none" do
         visit "#{project.path}/postgres"
 
         expect(page.title).to eq("Ubicloud - PostgreSQL Databases")
-        expect(page).to have_content "Create PostgreSQL Database"
+        expect(page).to have_content "No PostgreSQL databases"
+
+        click_link "Create PostgreSQL Database"
+        expect(page.title).to eq("Ubicloud - Create PostgreSQL Database")
+      end
+
+      it "offers to create a database next to the list" do
+        pg
+        visit "#{project.path}/postgres"
 
         click_link "Create PostgreSQL Database"
         expect(page.title).to eq("Ubicloud - Create PostgreSQL Database")
@@ -236,7 +244,7 @@ RSpec.describe Clover, "postgres" do
         expect(page).to have_flash_error("Validation failed for following fields: location")
       end
 
-      it "treats invalid flavor as standard flavor when creating" do
+      it "ignores the flavor parameter when creating" do
         default_project = Project[name: "Default"]
         url = "#{default_project.path}/dashboard"
         Capybara.current_session.driver.header "Referer", url

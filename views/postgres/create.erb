@@ -1,6 +1,4 @@
-<% default_flavor = PostgresResource.default_flavor
-  @flavor = typecast_params.nonempty_str("flavor", default_flavor)
-  @flavor = default_flavor unless Option::POSTGRES_FLAVOR_OPTIONS.key?(@flavor)
+<% @flavor = PostgresResource.default_flavor
   @prices = fetch_location_based_prices("PostgresVCpu", "PostgresStorage")
   @has_valid_payment_method = @project.has_valid_payment_method?
   effective_quota = @project.effective_quota_value("PostgresVCpu")
@@ -8,7 +6,7 @@
   @enabled_postgres_sizes = Option::VmSizes.select { effective_quota >= current_usage + it.vcpus }.map(&:name)
   @option_tree, @option_parents = PostgresResource.generate_postgres_options(@project, flavor: @flavor)
 
-  @page_title = "Create #{Option::POSTGRES_FLAVOR_OPTIONS[@flavor].title}" %>
+  @page_title = "Create PostgreSQL Database" %>
 
 <%== render("components/billing_warning") %>
 
